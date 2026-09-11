@@ -4,6 +4,8 @@ import br.com.davidlopes.couponapi.api.dto.CouponResponse;
 import br.com.davidlopes.couponapi.api.dto.CreateCouponRequest;
 import br.com.davidlopes.couponapi.domain.Coupon;
 import br.com.davidlopes.couponapi.infrastructure.CouponJpaRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +45,7 @@ public class CouponService {
         }
     }
 
+    @Cacheable(cacheNames = "coupons", key = "#id")
     @Transactional(readOnly = true)
     public CouponResponse findById(Long id) {
         Coupon coupon = repository.findByIdAndActiveTrue(id)
@@ -57,6 +60,7 @@ public class CouponService {
             .toList();
     }
 
+    @CacheEvict(cacheNames = "coupons", key = "#id")
     @Transactional
     public void delete(Long id) {
         Coupon coupon = repository.findById(id)
