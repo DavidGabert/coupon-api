@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -113,6 +114,51 @@ class CouponControllerErrorHandlingTest {
     void delete_withNonExistentId_returns404() throws Exception {
         mockMvc.perform(delete("/coupon/{id}", 999999L))
             .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void create_withWrongJsonTypeForDiscountValue_returns400WithStandardBody() throws Exception {
+        LinkedHashMap<String, Object> overrides = new LinkedHashMap<>();
+        overrides.put("discountValue", "abc");
+
+        mockMvc.perform(post("/coupon").contentType("application/json").content(payload(overrides)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.error").exists())
+            .andExpect(jsonPath("$.message").exists())
+            .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    void create_withMalformedJson_returns400WithStandardBody() throws Exception {
+        mockMvc.perform(post("/coupon").contentType("application/json").content("{\"code\": \"AB12CD\", "))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    void create_withUnsupportedContentType_returns415WithStandardBody() throws Exception {
+        mockMvc.perform(post("/coupon").contentType("text/plain").content(payload(new LinkedHashMap<>())))
+            .andExpect(status().isUnsupportedMediaType())
+            .andExpect(jsonPath("$.status").value(415))
+            .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    void unsupportedHttpMethodOnCouponResource_returns405WithStandardBody() throws Exception {
+        mockMvc.perform(put("/coupon/{id}", 1L).contentType("application/json").content(payload(new LinkedHashMap<>())))
+            .andExpect(status().isMethodNotAllowed())
+            .andExpect(jsonPath("$.status").value(405))
+            .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    void unknownSubPath_returns404WithStandardBody() throws Exception {
+        mockMvc.perform(get("/coupon/{id}/nope", 1L))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.status").value(404))
+            .andExpect(jsonPath("$.timestamp").exists());
     }
 
     @Test
