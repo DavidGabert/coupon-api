@@ -40,6 +40,10 @@ public class CouponService {
             Coupon saved = repository.save(coupon);
             return CouponResponse.from(saved);
         } catch (DataIntegrityViolationException e) {
+            // Every non-uniqueness cause (description length, discountValue precision) is
+            // rejected by Coupon.create() before we get here, so the only constraint the
+            // database can still be enforcing at this point is the unique active_code index,
+            // lost to a concurrent create that committed between the check above and this save.
             throw new DuplicateCouponCodeException(
                 "Coupon code already in use: " + coupon.getCode().value());
         }

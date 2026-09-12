@@ -4,6 +4,7 @@ import br.com.davidlopes.couponapi.application.CouponNotFoundException;
 import br.com.davidlopes.couponapi.application.DuplicateCouponCodeException;
 import br.com.davidlopes.couponapi.domain.exception.CouponAlreadyDeletedException;
 import br.com.davidlopes.couponapi.domain.exception.InvalidCouponCodeException;
+import br.com.davidlopes.couponapi.domain.exception.InvalidDescriptionException;
 import br.com.davidlopes.couponapi.domain.exception.InvalidDiscountValueException;
 import br.com.davidlopes.couponapi.domain.exception.PastExpirationDateException;
 import org.slf4j.Logger;
@@ -50,8 +51,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
+    @ExceptionHandler(InvalidDescriptionException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidDescription(InvalidDescriptionException ex) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 

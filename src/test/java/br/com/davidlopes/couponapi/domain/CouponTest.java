@@ -1,6 +1,7 @@
 package br.com.davidlopes.couponapi.domain;
 
 import br.com.davidlopes.couponapi.domain.exception.CouponAlreadyDeletedException;
+import br.com.davidlopes.couponapi.domain.exception.InvalidDescriptionException;
 import br.com.davidlopes.couponapi.domain.exception.InvalidDiscountValueException;
 import br.com.davidlopes.couponapi.domain.exception.PastExpirationDateException;
 import org.junit.jupiter.api.Test;
@@ -59,7 +60,53 @@ class CouponTest {
     void create_withBlankDescription_throws() {
         assertThatThrownBy(() ->
             Coupon.create("AB12CD", "   ", new BigDecimal("10.00"), FUTURE, false))
-            .isInstanceOf(IllegalArgumentException.class);
+            .isInstanceOf(InvalidDescriptionException.class);
+    }
+
+    @Test
+    void create_withDescriptionAtMaximumLength_isValid() {
+        String description = "x".repeat(255);
+
+        Coupon coupon = Coupon.create("AB12CD", description, new BigDecimal("10.00"), FUTURE, false);
+
+        assertThat(coupon.getDescription()).hasSize(255);
+    }
+
+    @Test
+    void create_withDescriptionLongerThanMaximumLength_throws() {
+        String description = "x".repeat(256);
+
+        assertThatThrownBy(() ->
+            Coupon.create("AB12CD", description, new BigDecimal("10.00"), FUTURE, false))
+            .isInstanceOf(InvalidDescriptionException.class);
+    }
+
+    @Test
+    void create_withDiscountValueExceedingColumnPrecision_throws() {
+        // 20 integer digits: the discount_value column allows at most 17 (precision 19, scale 2)
+        BigDecimal tooLarge = new BigDecimal("99999999999999999999.99");
+
+        assertThatThrownBy(() ->
+            Coupon.create("AB12CD", "desc", tooLarge, FUTURE, false))
+            .isInstanceOf(InvalidDiscountValueException.class);
+    }
+
+    @Test
+    void create_withDiscountValueAtMaximumColumnPrecision_isValid() {
+        // 17 integer digits: the largest the discount_value column can hold
+        BigDecimal largest = new BigDecimal("99999999999999999.99");
+
+        Coupon coupon = Coupon.create("AB12CD", "desc", largest, FUTURE, false);
+
+        assertThat(coupon.getDiscountValue()).isEqualByComparingTo(largest);
+    }
+
+    @Test
+    void create_withMoreThanTwoDecimalPlaces_roundsToWhatThePersistedColumnHolds() {
+        Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("0.50000001"), FUTURE, false);
+
+        assertThat(coupon.getDiscountValue()).isEqualByComparingTo("0.50");
+        assertThat(coupon.getDiscountValue().scale()).isEqualTo(2);
     }
 
     @Test

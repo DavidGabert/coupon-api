@@ -8,9 +8,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -114,6 +116,46 @@ class CouponControllerErrorHandlingTest {
     void delete_withNonExistentId_returns404() throws Exception {
         mockMvc.perform(delete("/coupon/{id}", 999999L))
             .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void create_withDescriptionLongerThanColumnLimit_returns400NotConflict() throws Exception {
+        LinkedHashMap<String, Object> overrides = new LinkedHashMap<>();
+        overrides.put("description", "x".repeat(256));
+
+        mockMvc.perform(post("/coupon").contentType("application/json").content(payload(overrides)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    void create_withDiscountValueExceedingColumnPrecision_returns400NotConflict() throws Exception {
+        LinkedHashMap<String, Object> overrides = new LinkedHashMap<>();
+        overrides.put("discountValue", new BigDecimal("99999999999999999999.99"));
+
+        mockMvc.perform(post("/coupon").contentType("application/json").content(payload(overrides)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    void create_withMoreThanTwoDecimalPlaces_returnsTheValueThatWasActuallyPersisted() throws Exception {
+        LinkedHashMap<String, Object> overrides = new LinkedHashMap<>();
+        overrides.put("discountValue", new BigDecimal("0.50000001"));
+
+        String created = mockMvc.perform(post("/coupon").contentType("application/json").content(payload(overrides)))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+        Long id = objectMapper.readTree(created).get("id").asLong();
+        BigDecimal createdValue = objectMapper.readTree(created).get("discountValue").decimalValue();
+
+        String fetched = mockMvc.perform(get("/coupon/{id}", id))
+            .andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString();
+        BigDecimal fetchedValue = objectMapper.readTree(fetched).get("discountValue").decimalValue();
+
+        assertThat(createdValue).isEqualByComparingTo("0.50");
+        assertThat(createdValue).isEqualByComparingTo(fetchedValue);
     }
 
     @Test
