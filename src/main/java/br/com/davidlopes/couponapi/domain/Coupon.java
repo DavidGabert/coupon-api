@@ -11,6 +11,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -34,6 +35,14 @@ public class Coupon {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * Optimistic-locking version, managed by Hibernate. Makes {@link #delete()} safe under
+     * concurrency: the in-memory {@code active} check alone cannot stop two simultaneous
+     * deletes from both committing, but the version check on the UPDATE can.
+     */
+    @Version
+    private Long version;
 
     @Embedded
     private CouponCode code;
@@ -132,6 +141,10 @@ public class Coupon {
 
     public Long getId() {
         return id;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 
     public CouponCode getCode() {

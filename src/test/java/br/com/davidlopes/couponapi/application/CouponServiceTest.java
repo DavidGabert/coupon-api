@@ -11,6 +11,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -107,7 +108,18 @@ class CouponServiceTest {
         service.delete(1L);
 
         assertThat(coupon.isActive()).isFalse();
-        verify(repository).save(coupon);
+        verify(repository).saveAndFlush(coupon);
+    }
+
+    @Test
+    void delete_whenFlushLosesTheOptimisticLockRace_translatesToCouponAlreadyDeletedException() {
+        Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("10.00"), FUTURE, false);
+        when(repository.findById(1L)).thenReturn(Optional.of(coupon));
+        when(repository.saveAndFlush(coupon))
+            .thenThrow(new ObjectOptimisticLockingFailureException(Coupon.class, 1L));
+
+        assertThatThrownBy(() -> service.delete(1L))
+            .isInstanceOf(CouponAlreadyDeletedException.class);
     }
 
     @Test

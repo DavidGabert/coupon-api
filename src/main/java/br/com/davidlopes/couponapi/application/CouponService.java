@@ -3,10 +3,12 @@ package br.com.davidlopes.couponapi.application;
 import br.com.davidlopes.couponapi.api.dto.CouponResponse;
 import br.com.davidlopes.couponapi.api.dto.CreateCouponRequest;
 import br.com.davidlopes.couponapi.domain.Coupon;
+import br.com.davidlopes.couponapi.domain.exception.CouponAlreadyDeletedException;
 import br.com.davidlopes.couponapi.infrastructure.CouponJpaRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -70,6 +72,16 @@ public class CouponService {
         Coupon coupon = repository.findById(id)
             .orElseThrow(() -> new CouponNotFoundException("Coupon not found: " + id));
         coupon.delete();
-        repository.save(coupon);
+        try {
+            // saveAndFlush, not save: the entity is already persistent, so its UPDATE would
+            // otherwise be deferred to commit — after this method returns, out of reach of
+            // this catch. Flushing here makes the optimistic-lock check happen synchronously.
+            repository.saveAndFlush(coupon);
+        } catch (ObjectOptimisticLockingFailureException e) {
+            // A concurrent delete of the same coupon committed first and bumped the version,
+            // so this UPDATE matched no row. coupon.delete()'s in-memory check could not see
+            // that; from this caller's point of view the coupon was indeed already deleted.
+            throw new CouponAlreadyDeletedException("Coupon " + id + " is already deleted");
+        }
     }
 }
