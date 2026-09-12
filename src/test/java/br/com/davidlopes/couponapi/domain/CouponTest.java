@@ -102,6 +102,20 @@ class CouponTest {
     }
 
     @Test
+    void create_withDiscountValueThatRoundsAcrossThePrecisionBoundary_throws() {
+        // 17 integer digits before rounding, but ".999" rounds HALF_UP to "1.00", carrying
+        // the integer part to 100000000000000000 (18 digits) — one over what the column
+        // allows. This only throws because Coupon.create() rounds BEFORE checking precision;
+        // checking precision on the raw input first would let this through, then silently
+        // exceed the discount_value column at persistence time.
+        BigDecimal roundsOverTheLimit = new BigDecimal("99999999999999999.999");
+
+        assertThatThrownBy(() ->
+            Coupon.create("AB12CD", "desc", roundsOverTheLimit, FUTURE, false))
+            .isInstanceOf(InvalidDiscountValueException.class);
+    }
+
+    @Test
     void create_withMoreThanTwoDecimalPlaces_roundsToWhatThePersistedColumnHolds() {
         Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("0.50000001"), FUTURE, false);
 
