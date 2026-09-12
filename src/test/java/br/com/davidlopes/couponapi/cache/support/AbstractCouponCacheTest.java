@@ -3,6 +3,7 @@ package br.com.davidlopes.couponapi.cache.support;
 import br.com.davidlopes.couponapi.application.CouponService;
 import br.com.davidlopes.couponapi.domain.Coupon;
 import br.com.davidlopes.couponapi.infrastructure.CouponJpaRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -25,6 +26,18 @@ public abstract class AbstractCouponCacheTest {
     protected abstract CouponJpaRepository repositorySpy();
 
     protected abstract org.springframework.cache.CacheManager cacheManager();
+
+    /**
+     * Both scenarios below hardcode the same {@code "AB12CD"} code, so without this,
+     * whichever test runs second collides with the first test's still-present row on
+     * the shared active_code unique constraint. Explicit cleanup here — rather than
+     * relying on a full context restart to incidentally reset the schema — keeps
+     * isolation an intentional guarantee instead of a side effect of some other setting.
+     */
+    @BeforeEach
+    void cleanDatabase() {
+        repositorySpy().deleteAll();
+    }
 
     @Test
     void findById_calledTwice_onlyHitsRepositoryOnce() {
