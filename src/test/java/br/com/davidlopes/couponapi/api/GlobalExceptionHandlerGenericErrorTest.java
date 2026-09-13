@@ -8,6 +8,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.UUID;
+
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -25,9 +28,9 @@ class GlobalExceptionHandlerGenericErrorTest {
 
     @Test
     void findById_whenServiceThrowsUnexpectedException_returns500WithStandardBody() throws Exception {
-        when(couponService.findById(1L)).thenThrow(new RuntimeException("boom"));
+        when(couponService.findById(any(UUID.class))).thenThrow(new RuntimeException("boom"));
 
-        mockMvc.perform(get("/coupon/{id}", 1L))
+        mockMvc.perform(get("/coupon/{id}", UUID.randomUUID()))
             .andExpect(status().isInternalServerError())
             .andExpect(jsonPath("$.status").value(500));
     }

@@ -12,8 +12,10 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -44,7 +46,7 @@ class CouponServiceConcurrentDeleteTest {
 
     @Test
     void concurrentDelete_ofTheSameCoupon_onlyOneSucceeds() throws Exception {
-        Long id = createCommittedCoupon();
+        UUID id = createCommittedCoupon();
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CyclicBarrier barrier = new CyclicBarrier(2);
@@ -69,15 +71,15 @@ class CouponServiceConcurrentDeleteTest {
         }
     }
 
-    private Long createCommittedCoupon() {
+    private UUID createCommittedCoupon() {
         return newTransaction().execute(status -> {
             CouponResponse created = couponService.create(new CreateCouponRequest(
-                RACE_CODE, "desc", new BigDecimal("10.00"), LocalDateTime.now().plusDays(30), false));
+                RACE_CODE, "desc", new BigDecimal("10.00"), Instant.now().plus(30, ChronoUnit.DAYS), false));
             return created.id();
         });
     }
 
-    private void attemptDelete(Long id, CyclicBarrier barrier,
+    private void attemptDelete(UUID id, CyclicBarrier barrier,
                                 AtomicInteger successCount, AtomicInteger alreadyDeletedCount) {
         try {
             barrier.await(10, TimeUnit.SECONDS);
@@ -92,7 +94,7 @@ class CouponServiceConcurrentDeleteTest {
         }
     }
 
-    private void deleteRow(Long id) {
+    private void deleteRow(UUID id) {
         if (id == null) {
             return;
         }

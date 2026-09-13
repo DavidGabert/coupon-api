@@ -7,7 +7,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.times;
@@ -42,19 +43,19 @@ public abstract class AbstractCouponCacheTest {
     @Test
     void findById_calledTwice_onlyHitsRepositoryOnce() {
         Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("10.00"),
-            LocalDateTime.now().plusDays(30), false);
+            Instant.now().plus(30, ChronoUnit.DAYS), false);
         var saved = repositorySpy().save(coupon);
 
         service().findById(saved.getId());
         service().findById(saved.getId());
 
-        verify(repositorySpy(), times(1)).findByIdAndActiveTrue(saved.getId());
+        verify(repositorySpy(), times(1)).findById(saved.getId());
     }
 
     @Test
     void delete_evictsTheCacheEntry() {
         Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("10.00"),
-            LocalDateTime.now().plusDays(30), false);
+            Instant.now().plus(30, ChronoUnit.DAYS), false);
         var saved = repositorySpy().save(coupon);
 
         service().findById(saved.getId());

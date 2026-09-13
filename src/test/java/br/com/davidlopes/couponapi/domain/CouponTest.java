@@ -7,14 +7,15 @@ import br.com.davidlopes.couponapi.domain.exception.PastExpirationDateException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CouponTest {
 
-    private static final LocalDateTime FUTURE = LocalDateTime.now().plusDays(30);
+    private static final Instant FUTURE = Instant.now().plus(30, ChronoUnit.DAYS);
 
     @Test
     void create_whenPublishedOmittedAsFalse_defaultsToUnpublished() {
@@ -49,7 +50,7 @@ class CouponTest {
 
     @Test
     void create_withExpirationDateInThePast_throws() {
-        LocalDateTime past = LocalDateTime.now().minusMinutes(1);
+        Instant past = Instant.now().minus(1, ChronoUnit.MINUTES);
 
         assertThatThrownBy(() ->
             Coupon.create("AB12CD", "desc", new BigDecimal("10.00"), past, false))
@@ -124,6 +125,41 @@ class CouponTest {
     }
 
     @Test
+    void create_returnsActiveStatusAndNeverRedeemed() {
+        Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("10.00"), FUTURE, false);
+
+        assertThat(coupon.status()).isEqualTo(CouponStatus.ACTIVE);
+        assertThat(coupon.isRedeemed()).isFalse();
+    }
+
+    @Test
+    void status_asOfBeforeExpirationDate_isActive() {
+        Instant expiresAt = Instant.now().plus(1, ChronoUnit.DAYS);
+        Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("10.00"), expiresAt, false);
+
+        assertThat(coupon.status(expiresAt.minusSeconds(1))).isEqualTo(CouponStatus.ACTIVE);
+    }
+
+    @Test
+    void status_asOfAfterExpirationDate_isInactive() {
+        Instant expiresAt = Instant.now().plus(1, ChronoUnit.DAYS);
+        Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("10.00"), expiresAt, false);
+
+        assertThat(coupon.status(expiresAt.plusSeconds(1))).isEqualTo(CouponStatus.INACTIVE);
+    }
+
+    @Test
+    void status_deletedCoupon_isDeletedRegardlessOfExpirationDate() {
+        Instant expiresAt = Instant.now().plus(1, ChronoUnit.DAYS);
+        Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("10.00"), expiresAt, false);
+        coupon.delete();
+
+        // Even checked well before the expiration date, a deleted coupon is DELETED, not ACTIVE.
+        assertThat(coupon.status(expiresAt.minusSeconds(1))).isEqualTo(CouponStatus.DELETED);
+        assertThat(coupon.status(expiresAt.plusSeconds(1))).isEqualTo(CouponStatus.DELETED);
+    }
+
+    @Test
     void delete_onActiveCoupon_marksInactiveAndSetsDeletedAt() {
         Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("10.00"), FUTURE, false);
 
@@ -131,6 +167,7 @@ class CouponTest {
 
         assertThat(coupon.isActive()).isFalse();
         assertThat(coupon.getDeletedAt()).isNotNull();
+        assertThat(coupon.status()).isEqualTo(CouponStatus.DELETED);
     }
 
     @Test

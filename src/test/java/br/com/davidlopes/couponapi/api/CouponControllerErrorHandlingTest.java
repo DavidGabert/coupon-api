@@ -9,8 +9,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -36,10 +38,14 @@ class CouponControllerErrorHandlingTest {
         body.put("code", "AB12CD");
         body.put("description", "10% off");
         body.put("discountValue", 10.00);
-        body.put("expirationDate", LocalDateTime.now().plusDays(30).toString());
+        body.put("expirationDate", Instant.now().plus(30, ChronoUnit.DAYS).toString());
         body.put("published", false);
         body.putAll(overrides);
         return objectMapper.writeValueAsString(body);
+    }
+
+    private String extractId(String responseBody) {
+        return objectMapper.readTree(responseBody).get("id").asText();
     }
 
     @Test
@@ -74,10 +80,29 @@ class CouponControllerErrorHandlingTest {
     @Test
     void create_withPastExpirationDate_returns400() throws Exception {
         LinkedHashMap<String, Object> overrides = new LinkedHashMap<>();
-        overrides.put("expirationDate", LocalDateTime.now().minusDays(1).toString());
+        overrides.put("expirationDate", Instant.now().minus(1, ChronoUnit.DAYS).toString());
 
         mockMvc.perform(post("/coupon").contentType("application/json").content(payload(overrides)))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void create_withContractExampleZSuffixedExpirationDate_isAcceptedAndPreservesTheInstant() throws Exception {
+        // The official contract's own request example uses a trailing "Z" (UTC instant), e.g.
+        // "2025-11-04T17:14:45.180Z" — Instant parses this natively, unlike the LocalDateTime
+        // this field used to be typed as (which accepted it too, but silently discarded the
+        // UTC meaning instead of genuinely honoring it).
+        String expirationDate = "2030-12-31T23:59:59.180Z";
+        LinkedHashMap<String, Object> overrides = new LinkedHashMap<>();
+        overrides.put("expirationDate", expirationDate);
+
+        String created = mockMvc.perform(post("/coupon").contentType("application/json").content(payload(overrides)))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+
+        String returnedExpirationDate = objectMapper.readTree(created).get("expirationDate").asText();
+        assertThat(java.time.Instant.parse(returnedExpirationDate))
+            .isEqualTo(java.time.Instant.parse(expirationDate));
     }
 
     @Test
@@ -90,13 +115,13 @@ class CouponControllerErrorHandlingTest {
 
     @Test
     void findById_withNonExistentId_returns404() throws Exception {
-        mockMvc.perform(get("/coupon/{id}", 999999L))
+        mockMvc.perform(get("/coupon/{id}", UUID.randomUUID()))
             .andExpect(status().isNotFound());
     }
 
     @Test
     void findById_withMalformedIdPathVariable_returns400() throws Exception {
-        mockMvc.perform(get("/coupon/{id}", "not-a-number"))
+        mockMvc.perform(get("/coupon/{id}", "not-a-uuid"))
             .andExpect(status().isBadRequest());
     }
 
@@ -104,7 +129,7 @@ class CouponControllerErrorHandlingTest {
     void delete_whenAlreadyDeleted_returns409() throws Exception {
         String created = mockMvc.perform(post("/coupon").contentType("application/json").content(payload(new LinkedHashMap<>())))
             .andReturn().getResponse().getContentAsString();
-        Long id = objectMapper.readTree(created).get("id").asLong();
+        String id = extractId(created);
 
         mockMvc.perform(delete("/coupon/{id}", id));
 
@@ -114,7 +139,7 @@ class CouponControllerErrorHandlingTest {
 
     @Test
     void delete_withNonExistentId_returns404() throws Exception {
-        mockMvc.perform(delete("/coupon/{id}", 999999L))
+        mockMvc.perform(delete("/coupon/{id}", UUID.randomUUID()))
             .andExpect(status().isNotFound());
     }
 
@@ -146,7 +171,7 @@ class CouponControllerErrorHandlingTest {
         String created = mockMvc.perform(post("/coupon").contentType("application/json").content(payload(overrides)))
             .andExpect(status().isCreated())
             .andReturn().getResponse().getContentAsString();
-        Long id = objectMapper.readTree(created).get("id").asLong();
+        String id = extractId(created);
         BigDecimal createdValue = objectMapper.readTree(created).get("discountValue").decimalValue();
 
         String fetched = mockMvc.perform(get("/coupon/{id}", id))
@@ -189,7 +214,7 @@ class CouponControllerErrorHandlingTest {
 
     @Test
     void unsupportedHttpMethodOnCouponResource_returns405WithStandardBody() throws Exception {
-        mockMvc.perform(put("/coupon/{id}", 1L).contentType("application/json").content(payload(new LinkedHashMap<>())))
+        mockMvc.perform(put("/coupon/{id}", UUID.randomUUID()).contentType("application/json").content(payload(new LinkedHashMap<>())))
             .andExpect(status().isMethodNotAllowed())
             .andExpect(jsonPath("$.status").value(405))
             .andExpect(jsonPath("$.timestamp").exists());
@@ -197,22 +222,26 @@ class CouponControllerErrorHandlingTest {
 
     @Test
     void unknownSubPath_returns404WithStandardBody() throws Exception {
-        mockMvc.perform(get("/coupon/{id}/nope", 1L))
+        mockMvc.perform(get("/coupon/{id}/nope", UUID.randomUUID()))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.status").value(404))
             .andExpect(jsonPath("$.timestamp").exists());
     }
 
     @Test
-    void delete_thenSubsequentGetReturns404() throws Exception {
+    void delete_thenSubsequentGetReturns200WithDeletedStatus() throws Exception {
+        // The contract's status enum includes DELETED, which is only ever reachable if a
+        // soft-deleted coupon is still returned by GET (rather than 404ing, which would make
+        // that enum value unreachable through any real endpoint).
         String created = mockMvc.perform(post("/coupon").contentType("application/json").content(payload(new LinkedHashMap<>())))
             .andReturn().getResponse().getContentAsString();
-        Long id = objectMapper.readTree(created).get("id").asLong();
+        String id = extractId(created);
 
         mockMvc.perform(delete("/coupon/{id}", id))
             .andExpect(status().isNoContent());
 
         mockMvc.perform(get("/coupon/{id}", id))
-            .andExpect(status().isNotFound());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("DELETED"));
     }
 }

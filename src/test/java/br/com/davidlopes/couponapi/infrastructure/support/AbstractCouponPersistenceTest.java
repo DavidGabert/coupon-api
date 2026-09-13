@@ -7,7 +7,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,7 +36,7 @@ public abstract class AbstractCouponPersistenceTest {
 
     private Coupon newCoupon(String code) {
         return Coupon.create(code, "desc", new BigDecimal("10.00"),
-            LocalDateTime.now().plusDays(30), false);
+            Instant.now().plus(30, ChronoUnit.DAYS), false);
     }
 
     @Test
@@ -59,11 +60,11 @@ public abstract class AbstractCouponPersistenceTest {
     void delete_thenCodeCanBeReusedByANewCoupon() {
         Coupon first = repository().save(newCoupon("AB12CD"));
         first.delete();
-        // Coupon uses IDENTITY generation, so a new entity's INSERT (persist) executes
-        // immediately, but this update (merge) would otherwise stay queued until the next
-        // flush. Without an explicit flush here, the second save() below (a fresh INSERT)
-        // can hit the DB before this row's active_code is nulled out, tripping the unique
-        // constraint even though the calls are made in the correct order.
+        // Without an explicit flush here, Hibernate is free to defer this write and execute
+        // it in the same batch as (or after) the second save() below — the two statements'
+        // relative order within a flush isn't otherwise guaranteed, and if the insert of the
+        // second "AB12CD" row is issued before this row's active_code is nulled out, it trips
+        // the unique constraint even though the calls were made in the correct order.
         repository().saveAndFlush(first);
 
         Coupon second = repository().save(newCoupon("AB12CD"));

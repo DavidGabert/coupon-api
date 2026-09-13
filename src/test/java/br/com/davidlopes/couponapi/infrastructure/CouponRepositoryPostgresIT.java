@@ -17,8 +17,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -68,7 +70,7 @@ class CouponRepositoryPostgresIT extends AbstractCouponPersistenceTest {
         // below: PROPAGATION_REQUIRES_NEW escapes the enclosing @Transactional rollback that
         // every other test in this class relies on, so the winning row would otherwise be
         // left behind in the shared container for the rest of the test class's lifetime.
-        AtomicReference<Long> committedId = new AtomicReference<>();
+        AtomicReference<UUID> committedId = new AtomicReference<>();
 
         try {
             List<Future<?>> futures = List.of(
@@ -89,7 +91,7 @@ class CouponRepositoryPostgresIT extends AbstractCouponPersistenceTest {
     }
 
     private void attemptCreate(CyclicBarrier barrier, AtomicInteger successCount, AtomicInteger failureCount,
-                                AtomicReference<Long> committedId) {
+                                AtomicReference<UUID> committedId) {
         try {
             barrier.await(10, TimeUnit.SECONDS);
         } catch (Exception e) {
@@ -100,7 +102,7 @@ class CouponRepositoryPostgresIT extends AbstractCouponPersistenceTest {
         try {
             template.executeWithoutResult(status -> {
                 Coupon coupon = Coupon.create(RACE_CODE, "desc", new BigDecimal("10.00"),
-                    LocalDateTime.now().plusDays(30), false);
+                    Instant.now().plus(30, ChronoUnit.DAYS), false);
                 repository.saveAndFlush(coupon);
                 committedId.set(coupon.getId());
             });
@@ -110,7 +112,7 @@ class CouponRepositoryPostgresIT extends AbstractCouponPersistenceTest {
         }
     }
 
-    private void deleteIfCommitted(Long id) {
+    private void deleteIfCommitted(UUID id) {
         if (id == null) {
             return;
         }

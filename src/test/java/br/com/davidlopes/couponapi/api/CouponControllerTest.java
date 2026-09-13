@@ -1,7 +1,6 @@
 package br.com.davidlopes.couponapi.api;
 
 import tools.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -9,13 +8,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -35,19 +34,26 @@ class CouponControllerTest {
             put("code", code);
             put("description", "10% off");
             put("discountValue", 10.00);
-            put("expirationDate", LocalDateTime.now().plusDays(30).toString());
+            put("expirationDate", Instant.now().plus(30, ChronoUnit.DAYS).toString());
             put("published", false);
         }});
     }
 
+    private String extractId(String responseBody) {
+        return objectMapper.readTree(responseBody).get("id").asText();
+    }
+
     @Test
-    void create_withValidPayload_returns201WithBody() throws Exception {
+    void create_withValidPayload_returns201WithContractShapedBody() throws Exception {
         mockMvc.perform(post("/coupon")
                 .contentType("application/json")
                 .content(validCreatePayload("AB12CD")))
             .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id").exists())
             .andExpect(jsonPath("$.code").value("AB12CD"))
-            .andExpect(jsonPath("$.active").value(true));
+            .andExpect(jsonPath("$.status").value("ACTIVE"))
+            .andExpect(jsonPath("$.published").value(false))
+            .andExpect(jsonPath("$.redeemed").value(false));
     }
 
     @Test
@@ -56,11 +62,12 @@ class CouponControllerTest {
                 .contentType("application/json")
                 .content(validCreatePayload("AB12CD")))
             .andReturn().getResponse().getContentAsString();
-        Long id = objectMapper.readTree(created).get("id").asLong();
+        String id = extractId(created);
 
         mockMvc.perform(get("/coupon/{id}", id))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.code").value("AB12CD"));
+            .andExpect(jsonPath("$.code").value("AB12CD"))
+            .andExpect(jsonPath("$.status").value("ACTIVE"));
     }
 
     @Test
@@ -79,7 +86,7 @@ class CouponControllerTest {
                 .contentType("application/json")
                 .content(validCreatePayload("AB12CD")))
             .andReturn().getResponse().getContentAsString();
-        Long id = objectMapper.readTree(created).get("id").asLong();
+        String id = extractId(created);
 
         mockMvc.perform(delete("/coupon/{id}", id))
             .andExpect(status().isNoContent());
