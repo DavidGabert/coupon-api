@@ -17,7 +17,6 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -103,17 +102,6 @@ class CouponServiceTest {
 
         assertThatThrownBy(() -> service.findById(ID))
             .isInstanceOf(CouponNotFoundException.class);
-    }
-
-    @Test
-    void findAll_mapsAllActiveCouponsToResponses() {
-        Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("10.00"), FUTURE, false);
-        when(repository.findAllByActiveTrue()).thenReturn(List.of(coupon));
-
-        List<CouponResponse> responses = service.findAll();
-
-        assertThat(responses).hasSize(1);
-        assertThat(responses.get(0).code()).isEqualTo("AB12CD");
     }
 
     @Test

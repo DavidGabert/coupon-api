@@ -34,7 +34,6 @@ class OpenApiSmokeTest {
             .andExpect(jsonPath("$.paths./coupon.post.responses.201").exists())
             .andExpect(jsonPath("$.paths./coupon.post.responses.400").exists())
             .andExpect(jsonPath("$.paths./coupon.post.responses.409").exists())
-            .andExpect(jsonPath("$.paths./coupon.get.summary").isNotEmpty())
             .andExpect(jsonPath("$.paths./coupon/{id}.get.summary").isNotEmpty())
             .andExpect(jsonPath("$.paths./coupon/{id}.get.responses.404").exists())
             .andExpect(jsonPath("$.paths./coupon/{id}.delete.summary").isNotEmpty())

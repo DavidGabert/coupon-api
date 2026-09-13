@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -70,15 +69,6 @@ public class CouponController {
     public ResponseEntity<CouponResponse> findById(
             @Parameter(description = "Id of the coupon") @PathVariable UUID id) {
         return ResponseEntity.ok(service.findById(id));
-    }
-
-    @GetMapping
-    @Operation(
-        summary = "List active coupons",
-        description = "Returns every coupon that has not been deleted. Returns an empty list when there are none.")
-    @ApiResponse(responseCode = "200", description = "Active coupons returned")
-    public ResponseEntity<List<CouponResponse>> findAll() {
-        return ResponseEntity.ok(service.findAll());
     }
 
     @DeleteMapping("/{id}")

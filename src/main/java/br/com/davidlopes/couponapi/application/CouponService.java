@@ -12,7 +12,6 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -60,13 +59,6 @@ public class CouponService {
         Coupon coupon = repository.findById(id)
             .orElseThrow(() -> new CouponNotFoundException("Coupon not found: " + id));
         return CouponResponse.from(coupon);
-    }
-
-    @Transactional(readOnly = true)
-    public List<CouponResponse> findAll() {
-        return repository.findAllByActiveTrue().stream()
-            .map(CouponResponse::from)
-            .toList();
     }
 
     @CacheEvict(cacheNames = "coupons", key = "#id")

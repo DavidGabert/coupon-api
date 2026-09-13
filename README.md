@@ -1,10 +1,9 @@
 # Coupon API
 
 API REST de cupons de desconto, construída em Java 17 / Spring Boot.
-Implementa criação (`POST /coupon`) e exclusão lógica (`DELETE
-/coupon/{id}`), e adiciona duas operações de leitura (`GET /coupon/{id}` e
-`GET /coupon`) necessárias para verificar, via a própria API, que create e
-delete funcionam como esperado. As regras de negócio (sanitização e
+Implementa os três endpoints do contrato: criação (`POST /coupon`), busca
+por id (`GET /coupon/{id}`) e exclusão lógica (`DELETE /coupon/{id}`). As
+regras de negócio (sanitização e
 validação do código do cupom, valor mínimo de desconto, data de expiração,
 unicidade de código entre cupons ativos, exclusão lógica) vivem encapsuladas
 no domínio (`Coupon` / `CouponCode`), não na camada de service ou de
@@ -35,7 +34,6 @@ stack trace real, rodando a aplicação sem Redis disponível:
   então a falha de conexão (`RedisConnectionFailureException` ←
   `io.lettuce.core.RedisConnectionException: Connection refused`) propaga
   direto pro handler de exceção.
-- `GET /coupon` (findAll, sem `@Cacheable`) → funciona normalmente.
 - `DELETE /coupon/{id}` → responde `204` normalmente, o soft delete
   acontece de verdade no banco. Mas a eviction do cache falha **em
   silêncio**: `spring-data-redis` 4.1.1 executa `evict()` de forma
@@ -113,19 +111,6 @@ HTTP/1.1 200
 Content-Type: application/json
 
 {"id":"0606b416-6920-419b-b259-988c636eddea","code":"AB1234","description":"10% off on all electronics","discountValue":10.00,"expirationDate":"2027-12-31T23:59:59Z","status":"ACTIVE","published":true,"redeemed":false}
-```
-
-### Listar cupons ativos — `GET /coupon`
-
-```bash
-curl -i http://localhost:8080/coupon
-```
-
-```
-HTTP/1.1 200
-Content-Type: application/json
-
-[{"id":"0606b416-6920-419b-b259-988c636eddea","code":"AB1234","description":"10% off on all electronics","discountValue":10.00,"expirationDate":"2027-12-31T23:59:59Z","status":"ACTIVE","published":true,"redeemed":false}]
 ```
 
 ### Excluir cupom (soft delete) — `DELETE /coupon/{id}`
@@ -369,15 +354,12 @@ que H2 em memória não reproduz de forma confiável.
 ### Justificativa e limitação conhecida do cache Redis
 
 Cache-aside em `GET /coupon/{id}` via `@Cacheable("coupons")`, com
-`@CacheEvict("coupons")` no delete; `GET /coupon` (listagem) fica fora do
-cache. A justificativa não é uma exigência comprovada por um requisito formal
-de volume/escala — é uma suposição documentada: o padrão de acesso
-típico de um domínio de cupons é leitura alta e escrita baixa (um cupom é
-criado uma vez e potencialmente revalidado várias vezes por requisição de
-checkout/precificação até expirar), o que justifica cache-aside mesmo sem
-prova de carga real. A listagem fica de fora porque muda com
-mais frequência relativa e os trade-offs de invalidação de coleção não
-compensam para este escopo.
+`@CacheEvict("coupons")` no delete. A justificativa não é uma exigência
+comprovada por um requisito formal de volume/escala — é uma suposição
+documentada: o padrão de acesso típico de um domínio de cupons é leitura
+alta e escrita baixa (um cupom é criado uma vez e potencialmente
+revalidado várias vezes por requisição de checkout/precificação até
+expirar), o que justifica cache-aside mesmo sem prova de carga real.
 
 A ordem entre `@CacheEvict` e o commit da transação de delete é garantida
 explicitamente: `CacheConfig` usa `@EnableCaching(order = 0)`, o que faz o

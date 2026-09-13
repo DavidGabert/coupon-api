@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
-import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -68,16 +67,6 @@ class CouponControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value("AB12CD"))
             .andExpect(jsonPath("$.status").value("ACTIVE"));
-    }
-
-    @Test
-    void findAll_returnsAllActiveCoupons() throws Exception {
-        mockMvc.perform(post("/coupon").contentType("application/json").content(validCreatePayload("AB12CD")));
-        mockMvc.perform(post("/coupon").contentType("application/json").content(validCreatePayload("EF34GH")));
-
-        mockMvc.perform(get("/coupon"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$", hasSize(2)));
     }
 
     @Test
