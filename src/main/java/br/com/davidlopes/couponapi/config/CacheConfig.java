@@ -10,8 +10,18 @@ import org.springframework.boot.cache.autoconfigure.RedisCacheManagerBuilderCust
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 
+/**
+ * {@code order = 0} makes the caching advisor wrap OUTSIDE the transaction advisor, which
+ * Spring Boot's auto-configured transaction management leaves at its own default
+ * ({@code Ordered.LOWEST_PRECEDENCE}) unless told otherwise. With caching outermost,
+ * {@code @CacheEvict} on {@code CouponService.delete()} only fires once the whole advised
+ * call — transaction commit included — has already returned successfully, closing the race
+ * where a concurrent read between evict and commit could repopulate the cache with the
+ * not-yet-deleted value. Without an explicit order here, both advisors default to the same
+ * precedence and their relative ordering is unspecified.
+ */
 @Configuration
-@EnableCaching
+@EnableCaching(order = 0)
 public class CacheConfig {
 
     @Bean
