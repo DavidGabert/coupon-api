@@ -5,10 +5,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-public interface CouponJpaRepository extends JpaRepository<Coupon, Long> {
+public interface CouponJpaRepository extends JpaRepository<Coupon, UUID> {
 
-    Optional<Coupon> findByIdAndActiveTrue(Long id);
+    Optional<Coupon> findByIdAndActiveTrue(UUID id);
 
     List<Coupon> findAllByActiveTrue();
 

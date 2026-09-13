@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/coupon")
@@ -57,16 +58,17 @@ public class CouponController {
     @GetMapping("/{id}")
     @Operation(
         summary = "Get a coupon by id",
-        description = "Returns the active coupon with the given id. Deleted coupons are not returned.")
+        description = "Returns the coupon with the given id, including soft-deleted ones — "
+            + "the response's status field reflects whether it was deleted.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Coupon found"),
-        @ApiResponse(responseCode = "400", description = "Id is not a number",
+        @ApiResponse(responseCode = "400", description = "Id is not a valid UUID",
             content = @Content(schema = @Schema(name = ERROR_SCHEMA, implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "404", description = "No active coupon with that id",
+        @ApiResponse(responseCode = "404", description = "No coupon with that id",
             content = @Content(schema = @Schema(name = ERROR_SCHEMA, implementation = ErrorResponse.class)))
     })
     public ResponseEntity<CouponResponse> findById(
-            @Parameter(description = "Id of the coupon") @PathVariable Long id) {
+            @Parameter(description = "Id of the coupon") @PathVariable UUID id) {
         return ResponseEntity.ok(service.findById(id));
     }
 
@@ -86,7 +88,7 @@ public class CouponController {
             + "Deleting an already-deleted coupon is rejected.")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Coupon deleted"),
-        @ApiResponse(responseCode = "400", description = "Id is not a number",
+        @ApiResponse(responseCode = "400", description = "Id is not a valid UUID",
             content = @Content(schema = @Schema(name = ERROR_SCHEMA, implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "404", description = "No coupon with that id",
             content = @Content(schema = @Schema(name = ERROR_SCHEMA, implementation = ErrorResponse.class))),
@@ -94,7 +96,7 @@ public class CouponController {
             content = @Content(schema = @Schema(name = ERROR_SCHEMA, implementation = ErrorResponse.class)))
     })
     public ResponseEntity<Void> delete(
-            @Parameter(description = "Id of the coupon") @PathVariable Long id) {
+            @Parameter(description = "Id of the coupon") @PathVariable UUID id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }

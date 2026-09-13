@@ -15,7 +15,8 @@ import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "coupons")
@@ -33,8 +34,8 @@ public class Coupon {
     private static final int DISCOUNT_SCALE = 2;
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     /**
      * Optimistic-locking version, managed by Hibernate. Makes {@link #delete()} safe under
@@ -57,7 +58,7 @@ public class Coupon {
     private BigDecimal discountValue;
 
     @Column(name = "expiration_date", nullable = false)
-    private LocalDateTime expirationDate;
+    private Instant expirationDate;
 
     @Column(nullable = false)
     private boolean published;
@@ -66,17 +67,17 @@ public class Coupon {
     private boolean active;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
+    private Instant deletedAt;
 
     protected Coupon() {
         // required by JPA
     }
 
     private Coupon(CouponCode code, String description, BigDecimal discountValue,
-                    LocalDateTime expirationDate, boolean published) {
+                    Instant expirationDate, boolean published) {
         this.code = code;
         this.activeCode = code.value();
         this.description = description;
@@ -84,11 +85,11 @@ public class Coupon {
         this.expirationDate = expirationDate;
         this.published = published;
         this.active = true;
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = Instant.now();
     }
 
     public static Coupon create(String rawCode, String description, BigDecimal discountValue,
-                                 LocalDateTime expirationDate, boolean published) {
+                                 Instant expirationDate, boolean published) {
         CouponCode couponCode = CouponCode.of(rawCode);
 
         if (discountValue == null || discountValue.compareTo(MINIMUM_DISCOUNT_VALUE) < 0) {
@@ -108,7 +109,7 @@ public class Coupon {
                     + " integer digits, got: " + discountValue);
         }
 
-        if (expirationDate == null || expirationDate.isBefore(LocalDateTime.now())) {
+        if (expirationDate == null || expirationDate.isBefore(Instant.now())) {
             throw new PastExpirationDateException(
                 "expirationDate must not be in the past: " + expirationDate);
         }
@@ -136,10 +137,31 @@ public class Coupon {
         }
         this.active = false;
         this.activeCode = null;
-        this.deletedAt = LocalDateTime.now();
+        this.deletedAt = Instant.now();
     }
 
-    public Long getId() {
+    public CouponStatus status() {
+        return status(Instant.now());
+    }
+
+    /**
+     * Package-private so {@code CouponTest} can assert the ACTIVE/INACTIVE boundary at an
+     * exact instant without sleeping past a real expiration date — {@link #status()} is the
+     * only entry point production code ever calls.
+     */
+    CouponStatus status(Instant asOf) {
+        if (!active) {
+            return CouponStatus.DELETED;
+        }
+        return expirationDate.isBefore(asOf) ? CouponStatus.INACTIVE : CouponStatus.ACTIVE;
+    }
+
+    /** Always {@code false}: no redemption/usage-tracking rule has been specified yet. */
+    public boolean isRedeemed() {
+        return false;
+    }
+
+    public UUID getId() {
         return id;
     }
 
@@ -159,7 +181,7 @@ public class Coupon {
         return discountValue;
     }
 
-    public LocalDateTime getExpirationDate() {
+    public Instant getExpirationDate() {
         return expirationDate;
     }
 
@@ -171,11 +193,11 @@ public class Coupon {
         return active;
     }
 
-    public LocalDateTime getCreatedAt() {
+    public Instant getCreatedAt() {
         return createdAt;
     }
 
-    public LocalDateTime getDeletedAt() {
+    public Instant getDeletedAt() {
         return deletedAt;
     }
 }

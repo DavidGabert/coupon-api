@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class CouponService {
@@ -51,10 +52,12 @@ public class CouponService {
         }
     }
 
+    // Unfiltered lookup, deliberately: the API contract returns soft-deleted coupons too,
+    // with status DELETED, rather than 404ing them — findByIdAndActiveTrue would hide them.
     @Cacheable(cacheNames = "coupons", key = "#id")
     @Transactional(readOnly = true)
-    public CouponResponse findById(Long id) {
-        Coupon coupon = repository.findByIdAndActiveTrue(id)
+    public CouponResponse findById(UUID id) {
+        Coupon coupon = repository.findById(id)
             .orElseThrow(() -> new CouponNotFoundException("Coupon not found: " + id));
         return CouponResponse.from(coupon);
     }
@@ -68,7 +71,7 @@ public class CouponService {
 
     @CacheEvict(cacheNames = "coupons", key = "#id")
     @Transactional
-    public void delete(Long id) {
+    public void delete(UUID id) {
         Coupon coupon = repository.findById(id)
             .orElseThrow(() -> new CouponNotFoundException("Coupon not found: " + id));
         coupon.delete();

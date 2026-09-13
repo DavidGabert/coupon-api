@@ -1,21 +1,22 @@
 package br.com.davidlopes.couponapi.api.dto;
 
 import br.com.davidlopes.couponapi.domain.Coupon;
+import br.com.davidlopes.couponapi.domain.CouponStatus;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.UUID;
 
 public record CouponResponse(
-    Long id,
+    UUID id,
     String code,
     String description,
     BigDecimal discountValue,
-    LocalDateTime expirationDate,
+    Instant expirationDate,
+    CouponStatus status,
     boolean published,
-    boolean active,
-    LocalDateTime createdAt,
-    LocalDateTime deletedAt
+    boolean redeemed
 ) implements Serializable {
 
     public static CouponResponse from(Coupon coupon) {
@@ -25,10 +26,9 @@ public record CouponResponse(
             coupon.getDescription(),
             coupon.getDiscountValue(),
             coupon.getExpirationDate(),
+            coupon.status(),
             coupon.isPublished(),
-            coupon.isActive(),
-            coupon.getCreatedAt(),
-            coupon.getDeletedAt()
+            coupon.isRedeemed()
         );
     }
 }
