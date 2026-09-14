@@ -1,7 +1,5 @@
 package br.com.davidlopes.couponapi.application;
 
-import br.com.davidlopes.couponapi.api.dto.CouponResponse;
-import br.com.davidlopes.couponapi.api.dto.CreateCouponRequest;
 import br.com.davidlopes.couponapi.domain.Coupon;
 import br.com.davidlopes.couponapi.domain.exception.CouponAlreadyDeletedException;
 import org.springframework.cache.annotation.CacheEvict;
@@ -32,12 +30,15 @@ public class CouponService {
             Boolean.TRUE.equals(request.published())
         );
 
-        if (repository.existsByActiveCode(coupon.getCode().value())) {
+        if (repository.existsActiveCouponWithCode(coupon.getCode().value())) {
             throw new DuplicateCouponCodeException(
                 "Coupon code already in use: " + coupon.getCode().value());
         }
 
         try {
+            // The port's save() contract guarantees the write, and any constraint it violates,
+            // is visible synchronously here — see CouponRepository.save's javadoc for why that
+            // matters for this exact catch.
             Coupon saved = repository.save(coupon);
             return CouponResponse.from(saved);
         } catch (DataIntegrityViolationException e) {
@@ -67,10 +68,7 @@ public class CouponService {
             .orElseThrow(() -> new CouponNotFoundException("Coupon not found: " + id));
         coupon.delete();
         try {
-            // saveAndFlush, not save: the entity is already persistent, so its UPDATE would
-            // otherwise be deferred to commit — after this method returns, out of reach of
-            // this catch. Flushing here makes the optimistic-lock check happen synchronously.
-            repository.saveAndFlush(coupon);
+            repository.save(coupon);
         } catch (ObjectOptimisticLockingFailureException e) {
             // A concurrent delete of the same coupon committed first and bumped the version,
             // so this UPDATE matched no row. coupon.delete()'s in-memory check could not see

@@ -1,7 +1,7 @@
 package br.com.davidlopes.couponapi.api;
 
-import br.com.davidlopes.couponapi.api.dto.CouponResponse;
-import br.com.davidlopes.couponapi.api.dto.CreateCouponRequest;
+import br.com.davidlopes.couponapi.application.CouponResponse;
+import br.com.davidlopes.couponapi.application.CreateCouponRequest;
 import br.com.davidlopes.couponapi.application.CouponService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

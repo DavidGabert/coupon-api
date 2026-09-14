@@ -22,11 +22,10 @@ public class JpaCouponRepository implements CouponRepository {
 
     @Override
     public Coupon save(Coupon coupon) {
-        return jpaRepository.save(CouponEntity.fromDomain(coupon)).toDomain();
-    }
-
-    @Override
-    public Coupon saveAndFlush(Coupon coupon) {
+        // saveAndFlush, not save: CouponEntity's id is client-generated (GenerationType.UUID),
+        // so Hibernate has no reason to flush a new row before commit. The port's contract
+        // promises the write (and any constraint violation) is visible synchronously, so this
+        // adapter must always flush to honor it.
         return jpaRepository.saveAndFlush(CouponEntity.fromDomain(coupon)).toDomain();
     }
 
@@ -36,7 +35,7 @@ public class JpaCouponRepository implements CouponRepository {
     }
 
     @Override
-    public boolean existsByActiveCode(String activeCode) {
-        return jpaRepository.existsByActiveCode(activeCode);
+    public boolean existsActiveCouponWithCode(String code) {
+        return jpaRepository.existsByActiveCode(code);
     }
 }

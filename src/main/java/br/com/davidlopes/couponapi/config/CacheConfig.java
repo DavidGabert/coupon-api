@@ -10,6 +10,8 @@ import org.springframework.boot.cache.autoconfigure.RedisCacheManagerBuilderCust
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 
+import java.time.Duration;
+
 /**
  * {@code order = 0} makes the caching advisor wrap OUTSIDE the transaction advisor, which
  * Spring Boot's auto-configured transaction management leaves at its own default
@@ -24,6 +26,15 @@ import org.springframework.data.redis.serializer.RedisSerializationContext;
 @EnableCaching(order = 0)
 public class CacheConfig {
 
+    /**
+     * {@code CouponResponse.status} is derived from {@code expirationDate} vs. "now" at the
+     * moment it's computed (see {@code Coupon.status()}), not from a value the database can
+     * ever change out from under the cache. Without a bound, a coupon cached while ACTIVE would
+     * keep reporting ACTIVE forever after it expires — nothing evicts it except a DELETE. A
+     * short TTL bounds how stale that read can get, independently of the eviction on delete.
+     */
+    private static final Duration COUPON_CACHE_TTL = Duration.ofMinutes(5);
+
     @Bean
     @ConditionalOnProperty(name = "spring.cache.type", havingValue = "redis", matchIfMissing = true)
     public RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer() {
@@ -37,6 +48,7 @@ public class CacheConfig {
 
         return builder -> builder.cacheDefaults(
             RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(COUPON_CACHE_TTL)
                 .serializeValuesWith(RedisSerializationContext.SerializationPair
                     .fromSerializer(serializer)));
     }

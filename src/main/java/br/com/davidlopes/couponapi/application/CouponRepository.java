@@ -14,11 +14,14 @@ import java.util.UUID;
  */
 public interface CouponRepository {
 
+    /**
+     * Persists {@code coupon} and returns the persisted state. Implementations must make the
+     * write, and any constraint it violates, visible to the caller synchronously — the caller
+     * relies on catching a constraint violation from this call, not from some later point.
+     */
     Coupon save(Coupon coupon);
-
-    Coupon saveAndFlush(Coupon coupon);
 
     Optional<Coupon> findById(UUID id);
 
-    boolean existsByActiveCode(String activeCode);
+    boolean existsActiveCouponWithCode(String code);
 }

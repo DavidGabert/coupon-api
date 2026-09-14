@@ -107,12 +107,20 @@ public class Coupon {
     /**
      * Rebuilds a {@code Coupon} from already-valid, already-persisted state — used only by
      * the infrastructure layer when mapping a stored record back into the domain. Skips every
-     * rule in {@link #create}, since a persisted coupon was valid at the moment it was written;
-     * this is reconstruction, not creation.
+     * business rule in {@link #create}, since a persisted coupon was valid at the moment it was
+     * written; this is reconstruction, not creation. It still guards the one structural
+     * invariant no valid persisted row can violate — {@code active} and {@code deletedAt} must
+     * agree — since a violation here means the persisted state itself is corrupt, not that a
+     * business rule was broken.
      */
     public static Coupon reconstitute(UUID id, Long version, String code, String description,
                                        BigDecimal discountValue, Instant expirationDate, boolean published,
                                        boolean active, Instant createdAt, Instant deletedAt) {
+        if (active == (deletedAt != null)) {
+            throw new IllegalStateException(
+                "Inconsistent persisted coupon state for " + id + ": active=" + active
+                    + " but deletedAt=" + deletedAt);
+        }
         return new Coupon(id, version, CouponCode.of(code), description, discountValue, expirationDate,
             published, active, createdAt, deletedAt);
     }

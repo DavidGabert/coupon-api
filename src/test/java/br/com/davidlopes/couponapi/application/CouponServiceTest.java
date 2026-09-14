@@ -1,7 +1,5 @@
 package br.com.davidlopes.couponapi.application;
 
-import br.com.davidlopes.couponapi.api.dto.CouponResponse;
-import br.com.davidlopes.couponapi.api.dto.CreateCouponRequest;
 import br.com.davidlopes.couponapi.domain.Coupon;
 import br.com.davidlopes.couponapi.domain.CouponStatus;
 import br.com.davidlopes.couponapi.domain.exception.CouponAlreadyDeletedException;
@@ -44,7 +42,7 @@ class CouponServiceTest {
 
     @Test
     void create_withNoExistingCode_savesAndReturnsResponse() {
-        when(repository.existsByActiveCode("AB12CD")).thenReturn(false);
+        when(repository.existsActiveCouponWithCode("AB12CD")).thenReturn(false);
         when(repository.save(any(Coupon.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         CouponResponse response = service.create(validRequest());
@@ -56,7 +54,7 @@ class CouponServiceTest {
 
     @Test
     void create_withExistingActiveCode_throwsDuplicateWithoutCallingSave() {
-        when(repository.existsByActiveCode("AB12CD")).thenReturn(true);
+        when(repository.existsActiveCouponWithCode("AB12CD")).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(validRequest()))
             .isInstanceOf(DuplicateCouponCodeException.class);
@@ -66,7 +64,7 @@ class CouponServiceTest {
 
     @Test
     void create_whenSaveRacesIntoAConstraintViolation_translatesToDuplicateCouponCodeException() {
-        when(repository.existsByActiveCode("AB12CD")).thenReturn(false);
+        when(repository.existsActiveCouponWithCode("AB12CD")).thenReturn(false);
         when(repository.save(any(Coupon.class))).thenThrow(new DataIntegrityViolationException("unique violation"));
 
         assertThatThrownBy(() -> service.create(validRequest()))
@@ -111,14 +109,14 @@ class CouponServiceTest {
         service.delete(ID);
 
         assertThat(coupon.isActive()).isFalse();
-        verify(repository).saveAndFlush(coupon);
+        verify(repository).save(coupon);
     }
 
     @Test
     void delete_whenFlushLosesTheOptimisticLockRace_translatesToCouponAlreadyDeletedException() {
         Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("10.00"), FUTURE, false);
         when(repository.findById(ID)).thenReturn(Optional.of(coupon));
-        when(repository.saveAndFlush(coupon))
+        when(repository.save(coupon))
             .thenThrow(new ObjectOptimisticLockingFailureException(Coupon.class, ID));
 
         assertThatThrownBy(() -> service.delete(ID))

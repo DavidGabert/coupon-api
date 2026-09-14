@@ -1,6 +1,5 @@
 package br.com.davidlopes.couponapi.application;
 
-import br.com.davidlopes.couponapi.domain.exception.CouponAlreadyDeletedException;
 import br.com.davidlopes.couponapi.infrastructure.CouponJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,25 +12,33 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Deliberately NOT {@code @Transactional}: the race this proves only exists between two
- * independent transactions that really commit, so the test must create the coupon in a
- * committed transaction and let each racing thread run its own, then clean up by hand.
+ * Proves {@code CouponService.create()}'s duplicate-code handling against real Hibernate flush
+ * timing, not a mock: {@code CouponEntity}'s id is client-generated ({@code GenerationType.UUID}),
+ * so a plain {@code save()} has no reason to flush before commit, and the unique {@code
+ * active_code} constraint violation from a losing concurrent create would surface at commit time,
+ * outside create()'s own try/catch — exactly the bug {@code saveAndFlush} fixes. A test that mocks
+ * the repository to throw synchronously cannot tell the two apart; this one, with two real threads
+ * racing through real transactions against H2, can.
+ *
+ * <p>Deliberately NOT {@code @Transactional}, for the same reason as {@code
+ * CouponServiceConcurrentDeleteTest}: the race only exists between two independent transactions
+ * that really commit.
  */
 @SpringBootTest
-class CouponServiceConcurrentDeleteTest {
+class CouponServiceConcurrentCreateTest {
 
-    private static final String RACE_CODE = "DELRC1";
+    private static final String RACE_CODE = "CRERC1";
 
     @Autowired
     private CouponService couponService;
@@ -43,18 +50,17 @@ class CouponServiceConcurrentDeleteTest {
     private PlatformTransactionManager transactionManager;
 
     @Test
-    void concurrentDelete_ofTheSameCoupon_onlyOneSucceeds() throws Exception {
-        UUID id = createCommittedCoupon();
-
+    void concurrentCreate_withSameCode_onlyOneSucceeds() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CyclicBarrier barrier = new CyclicBarrier(2);
         AtomicInteger successCount = new AtomicInteger(0);
-        AtomicInteger alreadyDeletedCount = new AtomicInteger(0);
+        AtomicInteger duplicateCount = new AtomicInteger(0);
+        AtomicReference<java.util.UUID> committedId = new AtomicReference<>();
 
         try {
             List<Future<?>> futures = List.of(
-                executor.submit(() -> attemptDelete(id, barrier, successCount, alreadyDeletedCount)),
-                executor.submit(() -> attemptDelete(id, barrier, successCount, alreadyDeletedCount))
+                executor.submit(() -> attemptCreate(barrier, successCount, duplicateCount, committedId)),
+                executor.submit(() -> attemptCreate(barrier, successCount, duplicateCount, committedId))
             );
 
             for (Future<?> future : futures) {
@@ -62,37 +68,33 @@ class CouponServiceConcurrentDeleteTest {
             }
 
             assertThat(successCount.get()).isEqualTo(1);
-            assertThat(alreadyDeletedCount.get()).isEqualTo(1);
+            assertThat(duplicateCount.get()).isEqualTo(1);
         } finally {
             executor.shutdownNow();
-            deleteRow(id);
+            deleteIfCommitted(committedId.get());
         }
     }
 
-    private UUID createCommittedCoupon() {
-        return newTransaction().execute(status -> {
-            CouponResponse created = couponService.create(new CreateCouponRequest(
-                RACE_CODE, "desc", new BigDecimal("10.00"), Instant.now().plus(30, ChronoUnit.DAYS), false));
-            return created.id();
-        });
-    }
-
-    private void attemptDelete(UUID id, CyclicBarrier barrier,
-                                AtomicInteger successCount, AtomicInteger alreadyDeletedCount) {
+    private void attemptCreate(CyclicBarrier barrier, AtomicInteger successCount,
+                                AtomicInteger duplicateCount, AtomicReference<java.util.UUID> committedId) {
         try {
             barrier.await(10, TimeUnit.SECONDS);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
         try {
-            newTransaction().executeWithoutResult(status -> couponService.delete(id));
+            newTransaction().executeWithoutResult(status -> {
+                var created = couponService.create(new CreateCouponRequest(
+                    RACE_CODE, "desc", new BigDecimal("10.00"), Instant.now().plus(30, ChronoUnit.DAYS), false));
+                committedId.set(created.id());
+            });
             successCount.incrementAndGet();
-        } catch (CouponAlreadyDeletedException e) {
-            alreadyDeletedCount.incrementAndGet();
+        } catch (DuplicateCouponCodeException e) {
+            duplicateCount.incrementAndGet();
         }
     }
 
-    private void deleteRow(UUID id) {
+    private void deleteIfCommitted(java.util.UUID id) {
         if (id == null) {
             return;
         }
