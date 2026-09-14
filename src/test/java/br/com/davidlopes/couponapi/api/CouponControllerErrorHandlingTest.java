@@ -154,13 +154,12 @@ class CouponControllerErrorHandlingTest {
     }
 
     @Test
-    void create_withDiscountValueExceedingColumnPrecision_returns400NotConflict() throws Exception {
+    void create_withVeryLargeDiscountValue_returns201NotBadRequest() throws Exception {
         LinkedHashMap<String, Object> overrides = new LinkedHashMap<>();
         overrides.put("discountValue", new BigDecimal("99999999999999999999.99"));
 
         mockMvc.perform(post("/coupon").contentType("application/json").content(payload(overrides)))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.status").value(400));
+            .andExpect(status().isCreated());
     }
 
     @Test

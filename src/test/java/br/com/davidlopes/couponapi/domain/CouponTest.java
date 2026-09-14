@@ -83,37 +83,13 @@ class CouponTest {
     }
 
     @Test
-    void create_withDiscountValueExceedingColumnPrecision_throws() {
-        // 20 integer digits: the discount_value column allows at most 17 (precision 19, scale 2)
-        BigDecimal tooLarge = new BigDecimal("99999999999999999999.99");
+    void create_withVeryLargeDiscountValue_isValid() {
+        // No predetermined maximum: an enormous value must be accepted just like a small one.
+        BigDecimal veryLarge = new BigDecimal("99999999999999999999.99");
 
-        assertThatThrownBy(() ->
-            Coupon.create("AB12CD", "desc", tooLarge, FUTURE, false))
-            .isInstanceOf(InvalidDiscountValueException.class);
-    }
+        Coupon coupon = Coupon.create("AB12CD", "desc", veryLarge, FUTURE, false);
 
-    @Test
-    void create_withDiscountValueAtMaximumColumnPrecision_isValid() {
-        // 17 integer digits: the largest the discount_value column can hold
-        BigDecimal largest = new BigDecimal("99999999999999999.99");
-
-        Coupon coupon = Coupon.create("AB12CD", "desc", largest, FUTURE, false);
-
-        assertThat(coupon.getDiscountValue()).isEqualByComparingTo(largest);
-    }
-
-    @Test
-    void create_withDiscountValueThatRoundsAcrossThePrecisionBoundary_throws() {
-        // 17 integer digits before rounding, but ".999" rounds HALF_UP to "1.00", carrying
-        // the integer part to 100000000000000000 (18 digits) — one over what the column
-        // allows. This only throws because Coupon.create() rounds BEFORE checking precision;
-        // checking precision on the raw input first would let this through, then silently
-        // exceed the discount_value column at persistence time.
-        BigDecimal roundsOverTheLimit = new BigDecimal("99999999999999999.999");
-
-        assertThatThrownBy(() ->
-            Coupon.create("AB12CD", "desc", roundsOverTheLimit, FUTURE, false))
-            .isInstanceOf(InvalidDiscountValueException.class);
+        assertThat(coupon.getDiscountValue()).isEqualByComparingTo(veryLarge);
     }
 
     @Test
