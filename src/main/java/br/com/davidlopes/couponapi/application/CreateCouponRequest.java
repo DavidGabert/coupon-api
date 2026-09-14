@@ -13,7 +13,7 @@ import java.time.Instant;
  * needs to import anything from {@code api}.
  */
 public record CreateCouponRequest(
-    @NotBlank String code,
+    @NotBlank @Size(max = 50) String code,
     @NotBlank @Size(max = 255) String description,
     @NotNull BigDecimal discountValue,
     @NotNull Instant expirationDate,

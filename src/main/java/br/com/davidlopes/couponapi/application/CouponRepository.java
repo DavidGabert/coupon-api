@@ -18,6 +18,11 @@ public interface CouponRepository {
      * Persists {@code coupon} and returns the persisted state. Implementations must make the
      * write, and any constraint it violates, visible to the caller synchronously — the caller
      * relies on catching a constraint violation from this call, not from some later point.
+     *
+     * @throws org.springframework.dao.DuplicateKeyException if {@code coupon}'s code is already
+     *         in use by another active coupon
+     * @throws org.springframework.dao.DataIntegrityViolationException for any other constraint
+     *         the underlying store rejects the write for
      */
     Coupon save(Coupon coupon);
 

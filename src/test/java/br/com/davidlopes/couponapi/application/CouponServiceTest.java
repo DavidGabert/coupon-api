@@ -9,6 +9,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.math.BigDecimal;
@@ -64,11 +65,28 @@ class CouponServiceTest {
 
     @Test
     void create_whenSaveRacesIntoAConstraintViolation_translatesToDuplicateCouponCodeException() {
+        // The adapter only throws DuplicateKeyException once it has confirmed the violation
+        // really was the active_code constraint (see JpaCouponRepository.save) -- the service
+        // just needs to translate that into the API-facing exception.
         when(repository.existsActiveCouponWithCode("AB12CD")).thenReturn(false);
-        when(repository.save(any(Coupon.class))).thenThrow(new DataIntegrityViolationException("unique violation"));
+        when(repository.save(any(Coupon.class))).thenThrow(new DuplicateKeyException("unique violation"));
 
         assertThatThrownBy(() -> service.create(validRequest()))
             .isInstanceOf(DuplicateCouponCodeException.class);
+    }
+
+    @Test
+    void create_whenSaveFailsForANonDuplicateReason_propagatesTheOriginalException() {
+        // A DataIntegrityViolationException that ISN'T the more specific DuplicateKeyException
+        // means the adapter determined it wasn't the active_code constraint -- reporting it as
+        // a duplicate code would be wrong, not just imprecise, so it must propagate unchanged.
+        when(repository.existsActiveCouponWithCode("AB12CD")).thenReturn(false);
+        DataIntegrityViolationException original =
+            new DataIntegrityViolationException("value too large for column \"discount_value\"");
+        when(repository.save(any(Coupon.class))).thenThrow(original);
+
+        assertThatThrownBy(() -> service.create(validRequest()))
+            .isSameAs(original);
     }
 
     @Test

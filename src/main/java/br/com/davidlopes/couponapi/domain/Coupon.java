@@ -74,9 +74,9 @@ public class Coupon {
                                  Instant expirationDate, boolean published) {
         CouponCode couponCode = CouponCode.of(rawCode);
 
-        if (discountValue == null || discountValue.compareTo(MINIMUM_DISCOUNT_VALUE) < 0) {
+        if (discountValue == null) {
             throw new InvalidDiscountValueException(
-                "discountValue must be >= " + MINIMUM_DISCOUNT_VALUE + ", got: " + discountValue);
+                "discountValue must be >= " + MINIMUM_DISCOUNT_VALUE + ", got: null");
         }
 
         // Rounded up front so the in-memory coupon — and therefore the create response —
@@ -85,6 +85,15 @@ public class Coupon {
         // response disagreeing with every later read. There is no upper bound on discountValue:
         // rounding only fixes the scale, it never rejects a value for being large.
         BigDecimal normalizedDiscountValue = discountValue.setScale(DISCOUNT_SCALE, RoundingMode.HALF_UP);
+
+        // Checked against the rounded value, not the raw input: a raw 0.495 rounds HALF_UP to
+        // the minimum itself (0.50) and must be accepted, since that rounded value is what
+        // actually gets stored and returned -- rejecting it here would contradict what every
+        // later read of the same coupon shows.
+        if (normalizedDiscountValue.compareTo(MINIMUM_DISCOUNT_VALUE) < 0) {
+            throw new InvalidDiscountValueException(
+                "discountValue must be >= " + MINIMUM_DISCOUNT_VALUE + ", got: " + discountValue);
+        }
 
         if (expirationDate == null || expirationDate.isBefore(Instant.now())) {
             throw new PastExpirationDateException(

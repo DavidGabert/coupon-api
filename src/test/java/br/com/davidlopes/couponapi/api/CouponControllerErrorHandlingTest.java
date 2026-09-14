@@ -69,6 +69,16 @@ class CouponControllerErrorHandlingTest {
     }
 
     @Test
+    void create_withCodeLongerThanFiftyChars_returns400() throws Exception {
+        LinkedHashMap<String, Object> overrides = new LinkedHashMap<>();
+        overrides.put("code", "A".repeat(51));
+
+        mockMvc.perform(post("/coupon").contentType("application/json").content(payload(overrides)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
     void create_withDiscountValueBelowMinimum_returns400() throws Exception {
         LinkedHashMap<String, Object> overrides = new LinkedHashMap<>();
         overrides.put("discountValue", 0.1);
@@ -160,6 +170,21 @@ class CouponControllerErrorHandlingTest {
 
         mockMvc.perform(post("/coupon").contentType("application/json").content(payload(overrides)))
             .andExpect(status().isCreated());
+    }
+
+    @Test
+    void create_withDiscountValueExceedingColumnCapacity_isNotMisreportedAsDuplicateCode() throws Exception {
+        // 40 integer digits: past what the discount_value column (precision 38, scale 2, so 36
+        // integer digits) can hold at all. Not a business-rule rejection -- discountValue has
+        // no predetermined maximum -- so this must not come back as 409 "already in use", which
+        // is what a naive "any DataIntegrityViolationException means duplicate code" catch
+        // would incorrectly report.
+        LinkedHashMap<String, Object> overrides = new LinkedHashMap<>();
+        overrides.put("code", "OVFL01");
+        overrides.put("discountValue", new BigDecimal("9".repeat(40) + ".99"));
+
+        mockMvc.perform(post("/coupon").contentType("application/json").content(payload(overrides)))
+            .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(409));
     }
 
     @Test

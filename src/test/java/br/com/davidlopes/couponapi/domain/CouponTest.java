@@ -49,6 +49,22 @@ class CouponTest {
     }
 
     @Test
+    void create_withDiscountValueThatRoundsUpToExactlyMinimum_isValid() {
+        // 0.495 is below 0.5 raw, but rounds HALF_UP to 0.50 -- the minimum itself -- and that
+        // rounded value is what actually gets stored and returned, so it must be accepted.
+        Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("0.495"), FUTURE, false);
+
+        assertThat(coupon.getDiscountValue()).isEqualByComparingTo("0.50");
+    }
+
+    @Test
+    void create_withDiscountValueThatRoundsDownBelowMinimum_stillThrows() {
+        assertThatThrownBy(() ->
+            Coupon.create("AB12CD", "desc", new BigDecimal("0.494"), FUTURE, false))
+            .isInstanceOf(InvalidDiscountValueException.class);
+    }
+
+    @Test
     void create_withExpirationDateInThePast_throws() {
         Instant past = Instant.now().minus(1, ChronoUnit.MINUTES);
 

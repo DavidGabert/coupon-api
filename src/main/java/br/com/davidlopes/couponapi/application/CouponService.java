@@ -4,7 +4,7 @@ import br.com.davidlopes.couponapi.domain.Coupon;
 import br.com.davidlopes.couponapi.domain.exception.CouponAlreadyDeletedException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,11 +41,13 @@ public class CouponService {
             // matters for this exact catch.
             Coupon saved = repository.save(coupon);
             return CouponResponse.from(saved);
-        } catch (DataIntegrityViolationException e) {
-            // Every non-uniqueness cause (blank/oversized description) is rejected by
-            // Coupon.create() before we get here, so the only constraint the database can
-            // still be enforcing at this point is the unique active_code index, lost to a
-            // concurrent create that committed between the check above and this save.
+        } catch (DuplicateKeyException e) {
+            // Only DuplicateKeyException is caught here, not the broader
+            // DataIntegrityViolationException it extends: the adapter only throws this specific
+            // subtype when the violation really was the active_code constraint (see
+            // JpaCouponRepository.save). Anything else -- e.g. a discountValue too large for the
+            // column -- is a genuinely different problem and is left to propagate rather than
+            // being misreported as a duplicate code.
             throw new DuplicateCouponCodeException(
                 "Coupon code already in use: " + coupon.getCode().value());
         }
