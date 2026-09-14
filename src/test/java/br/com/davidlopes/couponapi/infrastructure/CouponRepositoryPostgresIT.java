@@ -103,8 +103,8 @@ class CouponRepositoryPostgresIT extends AbstractCouponPersistenceTest {
             template.executeWithoutResult(status -> {
                 Coupon coupon = Coupon.create(RACE_CODE, "desc", new BigDecimal("10.00"),
                     Instant.now().plus(30, ChronoUnit.DAYS), false);
-                repository.saveAndFlush(coupon);
-                committedId.set(coupon.getId());
+                CouponEntity saved = repository.saveAndFlush(CouponEntity.fromDomain(coupon));
+                committedId.set(saved.getId());
             });
             successCount.incrementAndGet();
         } catch (DataIntegrityViolationException e) {

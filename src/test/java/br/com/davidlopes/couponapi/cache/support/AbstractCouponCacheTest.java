@@ -2,6 +2,7 @@ package br.com.davidlopes.couponapi.cache.support;
 
 import br.com.davidlopes.couponapi.application.CouponService;
 import br.com.davidlopes.couponapi.domain.Coupon;
+import br.com.davidlopes.couponapi.infrastructure.CouponEntity;
 import br.com.davidlopes.couponapi.infrastructure.CouponJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,7 +45,7 @@ public abstract class AbstractCouponCacheTest {
     void findById_calledTwice_onlyHitsRepositoryOnce() {
         Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("10.00"),
             Instant.now().plus(30, ChronoUnit.DAYS), false);
-        var saved = repositorySpy().save(coupon);
+        var saved = repositorySpy().save(CouponEntity.fromDomain(coupon));
 
         service().findById(saved.getId());
         service().findById(saved.getId());
@@ -56,7 +57,7 @@ public abstract class AbstractCouponCacheTest {
     void delete_evictsTheCacheEntry() {
         Coupon coupon = Coupon.create("AB12CD", "desc", new BigDecimal("10.00"),
             Instant.now().plus(30, ChronoUnit.DAYS), false);
-        var saved = repositorySpy().save(coupon);
+        var saved = repositorySpy().save(CouponEntity.fromDomain(coupon));
 
         service().findById(saved.getId());
         assertThat(cacheManager().getCache("coupons").get(saved.getId())).isNotNull();

@@ -1,22 +1,15 @@
 package br.com.davidlopes.couponapi.domain;
 
 import br.com.davidlopes.couponapi.domain.exception.InvalidCouponCodeException;
-import jakarta.persistence.Column;
-import jakarta.persistence.Embeddable;
 
 import java.util.Objects;
 
-@Embeddable
+/** Pure domain value object — carries no persistence annotation of its own. */
 public class CouponCode {
 
     private static final int REQUIRED_LENGTH = 6;
 
-    @Column(name = "code", nullable = false, length = REQUIRED_LENGTH)
-    private String value;
-
-    protected CouponCode() {
-        // required by JPA
-    }
+    private final String value;
 
     private CouponCode(String value) {
         this.value = value;

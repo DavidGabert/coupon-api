@@ -1,6 +1,7 @@
 package br.com.davidlopes.couponapi.infrastructure.support;
 
 import br.com.davidlopes.couponapi.domain.Coupon;
+import br.com.davidlopes.couponapi.infrastructure.CouponEntity;
 import br.com.davidlopes.couponapi.infrastructure.CouponJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -34,23 +35,30 @@ public abstract class AbstractCouponPersistenceTest {
 
     protected abstract CouponJpaRepository repository();
 
-    private Coupon newCoupon(String code) {
-        return Coupon.create(code, "desc", new BigDecimal("10.00"),
+    private CouponEntity newCouponEntity(String code) {
+        Coupon coupon = Coupon.create(code, "desc", new BigDecimal("10.00"),
             Instant.now().plus(30, ChronoUnit.DAYS), false);
+        return CouponEntity.fromDomain(coupon);
+    }
+
+    /** Round-trips through the domain object, exactly like {@code CouponRepository.saveAndFlush} does. */
+    private CouponEntity delete(CouponEntity entity) {
+        Coupon domain = entity.toDomain();
+        domain.delete();
+        return CouponEntity.fromDomain(domain);
     }
 
     @Test
     void save_thenFindByIdAndActiveTrue_returnsTheSavedCoupon() {
-        Coupon saved = repository().save(newCoupon("AB12CD"));
+        CouponEntity saved = repository().save(newCouponEntity("AB12CD"));
 
         assertThat(repository().findByIdAndActiveTrue(saved.getId())).isPresent();
     }
 
     @Test
     void delete_thenFindByIdAndActiveTrue_returnsEmpty_butFindByIdStillFindsIt() {
-        Coupon saved = repository().save(newCoupon("AB12CD"));
-        saved.delete();
-        repository().save(saved);
+        CouponEntity saved = repository().save(newCouponEntity("AB12CD"));
+        repository().save(delete(saved));
 
         assertThat(repository().findByIdAndActiveTrue(saved.getId())).isEmpty();
         assertThat(repository().findById(saved.getId())).isPresent();
@@ -58,16 +66,15 @@ public abstract class AbstractCouponPersistenceTest {
 
     @Test
     void delete_thenCodeCanBeReusedByANewCoupon() {
-        Coupon first = repository().save(newCoupon("AB12CD"));
-        first.delete();
+        CouponEntity first = repository().save(newCouponEntity("AB12CD"));
         // Without an explicit flush here, Hibernate is free to defer this write and execute
         // it in the same batch as (or after) the second save() below — the two statements'
         // relative order within a flush isn't otherwise guaranteed, and if the insert of the
         // second "AB12CD" row is issued before this row's active_code is nulled out, it trips
         // the unique constraint even though the calls were made in the correct order.
-        repository().saveAndFlush(first);
+        repository().saveAndFlush(delete(first));
 
-        Coupon second = repository().save(newCoupon("AB12CD"));
+        CouponEntity second = repository().save(newCouponEntity("AB12CD"));
 
         assertThat(second.getId()).isNotEqualTo(first.getId());
         assertThat(repository().existsByActiveCode("AB12CD")).isTrue();
@@ -75,21 +82,20 @@ public abstract class AbstractCouponPersistenceTest {
 
     @Test
     void findAllByActiveTrue_excludesDeletedCoupons() {
-        Coupon active = repository().save(newCoupon("AB12CD"));
-        Coupon toDelete = repository().save(newCoupon("EF34GH"));
-        toDelete.delete();
-        repository().save(toDelete);
+        CouponEntity active = repository().save(newCouponEntity("AB12CD"));
+        CouponEntity toDelete = repository().save(newCouponEntity("EF34GH"));
+        repository().save(delete(toDelete));
 
         assertThat(repository().findAllByActiveTrue())
-            .extracting(Coupon::getId)
+            .extracting(CouponEntity::getId)
             .containsExactly(active.getId());
     }
 
     @Test
     void save_withDuplicateActiveCode_violatesUniqueConstraint() {
-        repository().saveAndFlush(newCoupon("AB12CD"));
+        repository().saveAndFlush(newCouponEntity("AB12CD"));
 
-        assertThatThrownBy(() -> repository().saveAndFlush(newCoupon("AB12CD")))
+        assertThatThrownBy(() -> repository().saveAndFlush(newCouponEntity("AB12CD")))
             .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

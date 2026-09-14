@@ -5,7 +5,6 @@ import br.com.davidlopes.couponapi.api.dto.CreateCouponRequest;
 import br.com.davidlopes.couponapi.domain.Coupon;
 import br.com.davidlopes.couponapi.domain.CouponStatus;
 import br.com.davidlopes.couponapi.domain.exception.CouponAlreadyDeletedException;
-import br.com.davidlopes.couponapi.infrastructure.CouponJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -31,7 +30,7 @@ import static org.mockito.Mockito.when;
 class CouponServiceTest {
 
     @Mock
-    private CouponJpaRepository repository;
+    private CouponRepository repository;
 
     @InjectMocks
     private CouponService service;
